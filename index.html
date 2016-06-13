@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style type="text/css">
+        *{
+            box-sizing: border-box;
+        }
+        html, body{
+            margin: 0;
+        }
+        .text {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            outline: none;
+            border: none;
+        }
+        #to {
+            left: 50%;
+            border-left: 1px solid gray;
+        }
+    </style>
+</head>
+<body>
+
+<textarea spellcheck="false" id="from" class="text">
+
+    -- Create syntax for TABLE 'lines'
+CREATE TABLE `lines` (
+  `id` bigint(11) unsigned NOT NULL,
+  `en` bigint(11) unsigned DEFAULT NULL,
+  `ru` bigint(11) unsigned DEFAULT NULL,
+  `postId` bigint(11) unsigned DEFAULT NULL,
+  `seq` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'mediaFiles'
+CREATE TABLE `mediaFiles` (
+  `id` bigint(32) NOT NULL,
+  `type` tinyint(1) NOT NULL,
+  `uploadId` bigint(32) NOT NULL,
+  `filename` varchar(255) NOT NULL DEFAULT '',
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `info` text NOT NULL,
+  `startTime` int(11) DEFAULT NULL,
+  `shiftTime` float NOT NULL DEFAULT '0',
+  `duration` int(11) DEFAULT NULL,
+  `url` varchar(255) DEFAULT NULL,
+  `videoFile` bigint(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'posts'
+CREATE TABLE `posts` (
+  `id` bigint(11) unsigned NOT NULL,
+  `title` varchar(255) DEFAULT NULL,
+  `ruAudio` bigint(11) DEFAULT NULL,
+  `enAudio` bigint(11) DEFAULT NULL,
+  `ruSub` bigint(11) DEFAULT NULL,
+  `enSub` bigint(11) DEFAULT NULL,
+  `video` bigint(11) DEFAULT NULL,
+  `thumbs` bigint(11) DEFAULT NULL,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'textLines'
+CREATE TABLE `textLines` (
+  `id` bigint(11) unsigned NOT NULL,
+  `lang` tinyint(4) DEFAULT NULL,
+  `start` int(11) DEFAULT NULL,
+  `dur` int(11) unsigned DEFAULT NULL,
+  `text` varchar(255) DEFAULT NULL,
+  `lineId` bigint(11) DEFAULT NULL,
+  `postId` bigint(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'torrents'
+CREATE TABLE `torrents` (
+  `catId` int(11) DEFAULT NULL,
+  `catName` varchar(255) DEFAULT NULL,
+  `rutrackerId` int(11) NOT NULL DEFAULT '0',
+  `magnet` varchar(255) DEFAULT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `size` varchar(255) DEFAULT NULL,
+  `created` datetime DEFAULT NULL,
+  PRIMARY KEY (`rutrackerId`),
+  KEY `name` (`name`),
+  KEY `size` (`size`),
+  KEY `catId` (`catId`),
+  FULLTEXT KEY `full` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'uploads'
+CREATE TABLE `uploads` (
+  `id` bigint(32) NOT NULL,
+  `info` longtext,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- Create syntax for TABLE 'userTexts'
+CREATE TABLE `userTexts` (
+  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+</textarea>
+<textarea id="to" spellcheck="false" class="text"></textarea>
+
+<script type="text/javascript">
+    const fromNode = document.querySelector('#from')
+    const toNode = document.querySelector('#to')
+    const types = {
+        tinyint: 'number',
+        smallint: 'number',
+        mediumint: 'number',
+        int: 'number',
+        bigint: 'number',
+        float: 'number',
+        double: 'number',
+        decimal: 'number',
+
+        timestamp: 'number',
+        date: 'Date',
+        datetime: 'Date',
+        time: 'string',
+        year: 'number',
+
+        varchar: 'string',
+        char: 'string',
+        tinyblob: 'string',
+        blob: 'string',
+        text: 'string',
+        mediumblob: 'string',
+        mediumtext: 'string',
+        longblob: 'string',
+        longtext: 'string',
+        enum: 'string[]',
+        set: 'string[]',
+    }
+    function onChange() {
+        const text = fromNode.value.replace(/[\n\r]/g, '');
+        const tables = parse(text);
+        const result = makeInterfaces(tables);
+        toNode.value = result;
+    }
+
+    function parse(text) {
+        const queries = text.split(';');
+        const tables = [];
+        for (var i = 0; i < queries.length; i++) {
+            var query = queries[i];
+
+            const m = query.match(/CREATE TABLE `(.*?)` \((.*)\)/);
+            if (m) {
+                const table = m[1];
+                const fields = m[2].split(',');
+                const normFields = [];
+                for (var j = 0; j < fields.length; j++) {
+                    var field = fields[j].trim();
+                    const f = field.match(/^`(\w+)` (\w+)/);
+                    if (f) {
+                        const type = types[f[2].toLowerCase()];
+                        if (!type) {
+                            throw new Error('type is not defined: ' + f[2]);
+                        }
+                        normFields.push({field: f[1], type: types[f[2].toLowerCase()]});
+                    }
+                }
+                tables.push({table: table, fields: normFields});
+            }
+        }
+        return tables;
+    }
+
+    function makeInterfaces(tables) {
+        let s = 'interface Field<T>{}\n';
+        for (var i = 0; i < tables.length; i++) {
+            var item = tables[i];
+            const fields = item.fields.map(field => `\t${field.field}: ${field.type}`).join('\n');
+            const fieldTypes = item.fields.map(field => `\t${field.field}: Field<${field.type}>`).join('\n');
+            const fieldNames = item.fields.map(field => `"${field.field}"`).join(' | ');
+            const table = item.table.substr(0, 1).toUpperCase() + item.table.substr(1);
+            s += '\n\n'
+            s += `export interface I${table} {\n${fields}\n}\n`;
+            s += `export interface I${table}Fields {\n${fieldTypes}\n}\n`;
+            s += `export type I${table}FieldNames = ${fieldNames}\n`;
+        }
+        return s;
+    }
+
+    fromNode.onInput = onChange;
+    onChange();
+</script>
+</body>
+</html>
