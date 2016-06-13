@@ -98,6 +98,8 @@
 
     function makeInterfaces(tables) {
         let s = 'interface Field<T>{}\n';
+        let classes = '';
+        let daos = '';
         for (var i = 0; i < tables.length; i++) {
             var item = tables[i];
             const fields = item.fields.map(field => `\t${field.field}: ${field.type}`).join('\n');
@@ -108,8 +110,11 @@
             s += `export interface I${table} {\n${fields}\n}\n`;
             s += `export interface I${table}Fields {\n${fieldTypes}\n}\n`;
             s += `export type I${table}FieldNames = ${fieldNames}\n`;
+            classes += `export class ${table}DAO extends BaseModel<I${table}> {\n\ttable = '${item.table}'\n}\n\n`;
+            daos += `export const ${item.table}DAO = new ${table}DAO(db);\n`;
         }
-        return s;
+
+        return s + '\n/*====== Dao Classes ======*/\n' + classes + '\n/*====== Dao instances ======*/\n' + daos;
     }
 
     fromNode.oninput = onChange;
